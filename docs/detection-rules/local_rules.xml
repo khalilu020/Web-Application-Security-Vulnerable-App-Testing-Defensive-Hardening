@@ -1,0 +1,86 @@
+<!--
+  Custom Wazuh Detection Rules
+  Web Application Security Assessment — DVWA
+  ==============================================
+
+  These rules were authored to detect the exact attack patterns exploited
+  during this assessment's manual penetration testing phase, and were each
+  validated by replaying the corresponding attack and confirming the alert
+  fired correctly in the Wazuh dashboard.
+
+  Prerequisite: Apache access log must be added as a monitored <localfile>
+  in ossec.conf using log_format "apache", e.g.:
+
+    <localfile>
+      <log_format>apache</log_format>
+      <location>/var/log/apache2/access.log</location>
+    </localfile>
+
+  Rule ID range 100000+ is reserved for custom/local rules by Wazuh
+  convention, avoiding collisions with the built-in ruleset.
+-->
+
+<group name="local,web,attack,">
+
+  <!-- ============================================================
+       Rule 100014 — SQL Injection Detection
+       ============================================================
+       Technique: content matching against the request URL.
+       Fires on any web-access-log event (base rule 31100) whose URL
+       contains common SQL injection syntax markers.
+
+       Validated against: 1' UNION SELECT user, password FROM users-- -
+  -->
+  <rule id="100014" level="10">
+    <if_sid>31100</if_sid>
+    <url>union|select|UNION|SELECT</url>
+    <description>SQL Injection attempt detected in web request</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web,attack,sql_injection,</group>
+  </rule>
+
+  <!-- ============================================================
+       Rule 100015 — Cross-Site Scripting (XSS) Detection
+       ============================================================
+       Technique: content matching against the request URL.
+       Matches literal <script> tags (both cases), URL-encoded
+       <script (%3Cscript), and the classic alert( proof-of-concept
+       function call.
+
+       Validated against: <script>alert('test')</script>
+  -->
+  <rule id="100015" level="10">
+    <if_sid>31100</if_sid>
+    <url>script|SCRIPT|%3Cscript|alert\(</url>
+    <description>Cross-Site Scripting (XSS) attempt detected in web request</description>
+    <mitre>
+      <id>T1059.007</id>
+    </mitre>
+    <group>web,attack,xss,</group>
+  </rule>
+
+  <!-- ============================================================
+       Rule 100016 — Brute Force Login Detection
+       ============================================================
+       Technique: frequency/correlation, NOT content matching.
+       A single failed login is normal; this rule instead counts
+       occurrences of the built-in web-auth-failure rule (31106) and
+       fires only if 5 or more occur within a 60-second window —
+       modeling what a real brute-force attempt looks like as a
+       *pattern over time* rather than a single-event signature.
+
+       Validated against: 5 rapid failed login attempts via curl loop
+       against DVWA's Brute Force module.
+  -->
+  <rule id="100016" level="10" frequency="5" timeframe="60">
+    <if_matched_sid>31106</if_matched_sid>
+    <description>Possible brute force attack: multiple failed login attempts detected</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>web,attack,brute_force,</group>
+  </rule>
+
+</group>
